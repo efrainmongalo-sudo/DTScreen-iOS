@@ -12,17 +12,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Generar iconos y compilar ARM64
+      - name: Compilar binario nativo ARM64 con Logo
         run: |
           mkdir -p Payload/DTScreen.app
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           
-          # Generar iconos si existe imagen
-          if [ -f "AppIcon.png" ] || [ -f "AppIcon.jpg" ] || [ -f "Logo DT 2026.jpg" ]; then
-            SRC_IMG=$(ls AppIcon.png AppIcon.jpg "Logo DT 2026.jpg" 2>/dev/null | head -n 1)
-            sips -z 120 120 "$SRC_IMG" --out Payload/DTScreen.app/AppIcon60x60@2x.png || true
-            sips -z 152 152 "$SRC_IMG" --out Payload/DTScreen.app/AppIcon76x76@2x~ipad.png || true
-          fi
+          # Procesar logo si existe
+          for f in AppIcon.png AppIcon.jpg "Logo DT 2026.jpg"; do
+            if [ -f "$f" ]; then
+              sips -z 120 120 "$f" --out Payload/DTScreen.app/AppIcon60x60@2x.png || true
+              sips -z 152 152 "$f" --out Payload/DTScreen.app/AppIcon76x76@2x~ipad.png || true
+              break
+            fi
+          done
 
           xcrun swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen
           cp Info.plist Payload/DTScreen.app/
