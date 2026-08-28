@@ -12,26 +12,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compilar IPA y Generar Iconos
+      - name: Compilar Assets e IPA
         run: |
           mkdir -p Payload/DTScreen.app
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
 
+          # Localizar imagen del logo
           IMG_FILE=""
-          for name in "Logo DT 2026.jpg" AppIcon.png AppIcon.jpg Logo.jpg Logo.png; do
-            if [ -f "$name" ]; then
-              IMG_FILE="$name"
-              break
-            fi
+          for f in "Logo DT 2026.jpg" "Logo DT 2026.png" AppIcon.png AppIcon.jpg; do
+            if [ -f "$f" ]; then IMG_FILE="$f"; break; fi
           done
 
           if [ -n "$IMG_FILE" ]; then
-            sips -s format png "$IMG_FILE" --out Payload/DTScreen.app/AppIcon.png
+            # Crear catalogo de assets
+            mkdir -p AppIcon.xcassets/AppIcon.appiconset
+            cat << 'EOF' > AppIcon.xcassets/AppIcon.appiconset/Contents.json
+            {
+              "images" : [
+                { "size" : "76x76", "idiom" : "ipad", "filename" : "icon_76.png", "scale" : "1x" },
+                { "size" : "76x76", "idiom" : "ipad", "filename" : "icon_152.png", "scale" : "2x" },
+                { "size" : "83.5x83.5", "idiom" : "ipad", "filename" : "icon_167.png", "scale" : "2x" }
+              ],
+              "info" : { "version" : 1, "author" : "xcode" }
+            }
+          EOF
+            sips -z 76 76 "$IMG_FILE" --out AppIcon.xcassets/AppIcon.appiconset/icon_76.png
+            sips -z 152 152 "$IMG_FILE" --out AppIcon.xcassets/AppIcon.appiconset/icon_152.png
+            sips -z 167 167 "$IMG_FILE" --out AppIcon.xcassets/AppIcon.appiconset/icon_167.png
+            
+            # Compilar Assets.car
+            actool --compile Payload/DTScreen.app --platform iphoneos --minimum-deployment-target 12.0 --app-icon AppIcon --output-partial-info-plist partial.plist AppIcon.xcassets || true
             sips -z 152 152 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon76x76@2x~ipad.png
-            sips -z 76 76 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon76x76~ipad.png
-            sips -z 120 120 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon60x60@2x.png
-            sips -z 80 80 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon40x40@2x.png
-            sips -z 58 58 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon29x29@2x.png
           fi
 
           xcrun swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen

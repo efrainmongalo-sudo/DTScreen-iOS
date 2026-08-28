@@ -9,35 +9,37 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UIApplication.shared.isStatusBarHidden = true
         UIApplication.shared.isIdleTimerDisabled = true
-        window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ScreenViewController()
-        window?.makeKeyAndVisible()
+        
+        let win = UIWindow(frame: UIScreen.main.bounds)
+        win.rootViewController = ScreenViewController()
+        win.makeKeyAndVisible()
+        self.window = win
         return true
     }
 }
 
 class ScreenViewController: UIViewController {
     let imageView = UIImageView()
-    let statusLabel = UILabel()
     var serverFd: Int32 = -1
     var isRunning = true
 
     override var prefersStatusBarHidden: Bool { return true }
+    override var prefersHomeIndicatorAutoHidden: Bool { return true }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
 
-        imageView.frame = UIScreen.main.bounds
         imageView.contentMode = .scaleToFill
-        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        imageView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(imageView)
 
-        statusLabel.frame = CGRect(x: 24, y: 24, width: 400, height: 30)
-        statusLabel.textColor = UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
-        statusLabel.font = UIFont.boldSystemFont(ofSize: 16)
-        statusLabel.text = "DT Screen: Esperando señal USB..."
-        view.addSubview(statusLabel)
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: view.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
 
         startServer()
     }
@@ -77,21 +79,8 @@ class ScreenViewController: UIViewController {
                 }
 
                 if clientFd < 0 { continue }
-
-                DispatchQueue.main.async {
-                    self.statusLabel.text = "DT Screen: Conectado a 60 FPS"
-                    UIView.animate(withDuration: 1.0, delay: 1.5, options: [], animations: {
-                        self.statusLabel.alpha = 0
-                    }, completion: nil)
-                }
-
                 self.readClientData(clientFd: clientFd)
                 close(clientFd)
-
-                DispatchQueue.main.async {
-                    self.statusLabel.alpha = 1.0
-                    self.statusLabel.text = "DT Screen: Esperando señal USB..."
-                }
             }
         }
     }
