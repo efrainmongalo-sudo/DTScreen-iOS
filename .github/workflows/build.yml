@@ -12,37 +12,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compilar Assets e IPA
+      - name: Compilar iPad Native App con Logo
         run: |
           mkdir -p Payload/DTScreen.app
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
 
-          # Localizar imagen del logo
           IMG_FILE=""
           for f in "Logo DT 2026.jpg" "Logo DT 2026.png" AppIcon.png AppIcon.jpg; do
             if [ -f "$f" ]; then IMG_FILE="$f"; break; fi
           done
 
           if [ -n "$IMG_FILE" ]; then
-            # Crear catalogo de assets
-            mkdir -p AppIcon.xcassets/AppIcon.appiconset
-            cat << 'EOF' > AppIcon.xcassets/AppIcon.appiconset/Contents.json
-            {
-              "images" : [
-                { "size" : "76x76", "idiom" : "ipad", "filename" : "icon_76.png", "scale" : "1x" },
-                { "size" : "76x76", "idiom" : "ipad", "filename" : "icon_152.png", "scale" : "2x" },
-                { "size" : "83.5x83.5", "idiom" : "ipad", "filename" : "icon_167.png", "scale" : "2x" }
-              ],
-              "info" : { "version" : 1, "author" : "xcode" }
-            }
-          EOF
-            sips -z 76 76 "$IMG_FILE" --out AppIcon.xcassets/AppIcon.appiconset/icon_76.png
-            sips -z 152 152 "$IMG_FILE" --out AppIcon.xcassets/AppIcon.appiconset/icon_152.png
-            sips -z 167 167 "$IMG_FILE" --out AppIcon.xcassets/AppIcon.appiconset/icon_167.png
-            
-            # Compilar Assets.car
-            actool --compile Payload/DTScreen.app --platform iphoneos --minimum-deployment-target 12.0 --app-icon AppIcon --output-partial-info-plist partial.plist AppIcon.xcassets || true
             sips -z 152 152 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon76x76@2x~ipad.png
+            sips -z 76 76 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon76x76~ipad.png
+            sips -z 167 167 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon83.5x83.5@2x~ipad.png
+            sips -s format png "$IMG_FILE" --out Payload/DTScreen.app/AppIcon.png
           fi
 
           xcrun swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen

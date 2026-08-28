@@ -10,7 +10,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         UIApplication.shared.isStatusBarHidden = true
         UIApplication.shared.isIdleTimerDisabled = true
         
-        let win = UIWindow(frame: UIScreen.main.bounds)
+        let screenBounds = UIScreen.main.bounds
+        let win = UIWindow(frame: screenBounds)
         win.rootViewController = ScreenViewController()
         win.makeKeyAndVisible()
         self.window = win
@@ -19,9 +20,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 class ScreenViewController: UIViewController {
-    let imageView = UIImageView()
+    let screenLayer = CALayer()
     var serverFd: Int32 = -1
-    var activeClientFd: Int32 = -1
     var isRunning = true
 
     override var prefersStatusBarHidden: Bool { return true }
@@ -31,34 +31,27 @@ class ScreenViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black
 
-        imageView.frame = view.bounds
-        imageView.contentMode = .scaleToFill
-        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(imageView)
-
-        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged), name: UIDevice.orientationDidChangeNotification, object: nil)
+        screenLayer.frame = view.bounds
+        screenLayer.contentsGravity = .resize
+        screenLayer.actions = ["contents": NSNull()] // Desactivar animaciones para latencia cero
+        view.layer.addSublayer(screenLayer)
 
         startServer()
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        imageView.frame = view.bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        screenLayer.frame = view.bounds
+        CATransaction.commit()
     }
 
-    @objc func orientationChanged() {
-        guard activeClientFd >= 0 else { return }
-        let size = UIScreen.main.bounds.size
-        let isLandscape = UIDevice.current.orientation.isLandscape || (size.width > size.height)
-        let w = isLandscape ? 1024 : 768
-        let h = isLandscape ? 768 : 1024
-        
-        let msg = "RESI:\(w):\(h)\n"
-        if let data = msg.data(using: .utf8) {
-            _ = data.withUnsafeBytes { ptr in
-                send(activeClientFd, ptr.baseAddress, data.count, 0)
-            }
-        }
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { _ in
+            self.screenLayer.frame = CGRect(origin: .zero, size: size)
+        }, completion: nil)
     }
 
     func startServer() {
@@ -91,11 +84,13 @@ class ScreenViewController: UIViewController {
                 }
 
                 if clientFd < 0 { continue }
-                self.activeClientFd = clientFd
-                self.orientationChanged()
+                
+                // Configurar TCP_NODELAY para latencia ultra baja
+                var noDelay: Int32 = 1
+                setsockopt(clientFd, IPPROTO_TCP, TCP_NODELAY, &noDelay, socklen_t(MemoryLayout<Int32>.size))
+
                 self.readClientData(clientFd: clientFd)
                 close(clientFd)
-                self.activeClientFd = -1
             }
         }
     }
@@ -111,7 +106,7 @@ class ScreenViewController: UIViewController {
             }
 
             let totalSize = Int(UInt32(bigEndian: sizeBuf.withUnsafeBytes { $0.load(as: UInt32.self) }))
-            guard totalSize > 0 && totalSize < 20_000_000 else { return }
+            guard totalSize > 0 && totalSize < 15_000_000 else { return }
 
             var data = Data(count: totalSize)
             var totalRead = 0
@@ -127,9 +122,10 @@ class ScreenViewController: UIViewController {
 
             if !success { return }
 
-            if let img = UIImage(data: data) {
+            if let provider = CGDataProvider(data: data as CFData),
+               let image = CGImage(jpegDataProviderSource: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) {
                 DispatchQueue.main.async {
-                    self.imageView.image = img
+                    self.screenLayer.contents = image
                 }
             }
         }
