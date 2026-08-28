@@ -5,7 +5,7 @@
     <key>CFBundleExecutable</key>
     <string>DTScreen</string>
     <key>CFBundleIdentifier</key>
-    <string>com.dtscreen.app</string>
+    <string>com.delinetek.dtscreen</string>
     <key>CFBundleName</key>
     <string>DT Screen</string>
     <key>CFBundleDisplayName</key>
@@ -16,6 +16,17 @@
     <string>1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+                <string>AppIcon76x76</string>
+            </array>
+        </dict>
+    </dict>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UIRequiresFullScreen</key>
