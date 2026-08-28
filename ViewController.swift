@@ -32,11 +32,11 @@ class ScreenViewController: UIViewController {
         view.backgroundColor = .black
 
         screenLayer.frame = view.bounds
-        screenLayer.contentsGravity = .resize
+        screenLayer.contentsGravity = .resizeAspect
         screenLayer.actions = ["contents": NSNull()]
         view.layer.addSublayer(screenLayer)
 
-        NotificationCenter.default.addObserver(self, selector: #selector(sendOrientationUpdate), name: UIDevice.orientationDidChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRotation), name: UIDevice.orientationDidChangeNotification, object: nil)
         startServer()
     }
 
@@ -48,24 +48,13 @@ class ScreenViewController: UIViewController {
         CATransaction.commit()
     }
 
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        super.viewWillTransition(to: size, with: coordinator)
-        coordinator.animate(alongsideTransition: { _ in
-            self.screenLayer.frame = CGRect(origin: .zero, size: size)
-            self.sendOrientationUpdate()
-        }, completion: nil)
-    }
-
-    @objc func sendOrientationUpdate() {
+    @objc func handleRotation() {
         guard clientFd >= 0 else { return }
         let size = UIScreen.main.bounds.size
         let isLandscape = size.width > size.height
         
-        let w = isLandscape ? 2048 : 1536
-        let h = isLandscape ? 1536 : 2048
-        
-        let msg = "ROT:\(w):\(h)\n"
-        if let data = msg.data(using: .utf8) {
+        let cmd = isLandscape ? "ORI:LAND\n" : "ORI:PORT\n"
+        if let data = cmd.data(using: .utf8) {
             _ = data.withUnsafeBytes { ptr in
                 send(clientFd, ptr.baseAddress, data.count, 0)
             }
@@ -107,7 +96,7 @@ class ScreenViewController: UIViewController {
                 setsockopt(cFd, IPPROTO_TCP, TCP_NODELAY, &noDelay, socklen_t(MemoryLayout<Int32>.size))
 
                 self.clientFd = cFd
-                self.sendOrientationUpdate()
+                self.handleRotation()
                 self.readClientData(clientFd: cFd)
                 close(cFd)
                 self.clientFd = -1
