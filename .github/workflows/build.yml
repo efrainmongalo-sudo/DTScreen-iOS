@@ -12,11 +12,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compilar binario nativo ARM64
+      - name: Compilar binario nativo ARM64 para iOS 12
         run: |
           mkdir -p Payload/DTScreen.app
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          xcrun swiftc -target arm64-apple-ios14.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen
+          xcrun swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen
           cp Info.plist Payload/DTScreen.app/
           zip -r DTScreen.ipa Payload
 

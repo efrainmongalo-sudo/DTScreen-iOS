@@ -1,5 +1,4 @@
 ﻿import UIKit
-import Network
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -13,9 +12,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-class ScreenViewController: UIViewController {
+class ScreenViewController: UIViewController, StreamDelegate {
     let imageView = UIImageView()
-    var connection: NWConnection?
+    var inputStream: InputStream?
+    var isReading = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,32 +24,55 @@ class ScreenViewController: UIViewController {
         imageView.contentMode = .scaleAspectFit
         imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(imageView)
-        connectToHost()
+        initSocket()
     }
 
-    func connectToHost() {
-        let endpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: 5900)
-        connection = NWConnection(to: endpoint, using: .tcp)
-        connection?.stateUpdateHandler = { [weak self] state in
-            if case .ready = state {
-                self?.receiveFrame()
-            }
-        }
-        connection?.start(queue: .main)
+    func initSocket() {
+        var readStream: Unmanaged<CFReadStream>?
+        CFStreamCreatePairWithSocketToHost(kCFAllocatorDefault, "127.0.0.1" as CFString, 5900, &readStream, nil)
+        inputStream = readStream?.takeRetainedValue()
+        inputStream?.delegate = self
+        inputStream?.schedule(in: .main, forMode: .common)
+        inputStream?.open()
+        readLoop()
     }
 
-    func receiveFrame() {
-        connection?.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, _, error in
-            guard let data = data, data.count == 4, error == nil else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self?.connectToHost() }
-                return
-            }
-            let size = data.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-            self?.connection?.receive(minimumIncompleteLength: Int(size), maximumLength: Int(size)) { imgData, _, _, _ in
-                if let imgData = imgData, let img = UIImage(data: imgData) {
-                    self?.imageView.image = img
+    func readLoop() {
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            while true {
+                guard let self = self, let stream = self.inputStream, stream.streamStatus == .open else {
+                    Thread.sleep(forTimeInterval: 1.0)
+                    continue
                 }
-                self?.receiveFrame()
+
+                var sizeBuffer = [UInt8](repeating: 0, count: 4)
+                let bytesRead = stream.read(&sizeBuffer, maxLength: 4)
+                guard bytesRead == 4 else {
+                    Thread.sleep(forTimeInterval: 0.5)
+                    continue
+                }
+
+                let totalSize = Int(UInt32(bigEndian: sizeBuffer.withUnsafeBytes { $0.load(as: UInt32.self) }))
+                guard totalSize > 0 && totalSize < 10_000_000 else { continue }
+
+                var imgData = Data()
+                var remaining = totalSize
+                let chunk = 16384
+                var buffer = [UInt8](repeating: 0, count: chunk)
+
+                while remaining > 0 {
+                    let toRead = min(remaining, chunk)
+                    let read = stream.read(&buffer, maxLength: toRead)
+                    if read <= 0 { break }
+                    imgData.append(buffer, count: read)
+                    remaining -= read
+                }
+
+                if imgData.count == totalSize, let image = UIImage(data: imgData) {
+                    DispatchQueue.main.async {
+                        self.imageView.image = image
+                    }
+                }
             }
         }
     }
