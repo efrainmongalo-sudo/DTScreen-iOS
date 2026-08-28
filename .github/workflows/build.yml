@@ -15,7 +15,8 @@ jobs:
       - name: Compilar binario nativo ARM64
         run: |
           mkdir -p build/Payload/DTScreen.app
-          xcrun -sdk iphoneos swiftc -target arm64-apple-ios12.0 ViewController.swift -o build/Payload/DTScreen.app/DTScreen
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun -sdk iphoneos swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -framework UIKit -framework Foundation -framework Network -emit-executable ViewController.swift -o build/Payload/DTScreen.app/DTScreen
           cp Info.plist build/Payload/DTScreen.app/
           cd build
           zip -r DTScreen.ipa Payload
