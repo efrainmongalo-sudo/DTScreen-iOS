@@ -12,19 +12,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compilar binario nativo ARM64 con Logo
+      - name: Compilar IPA y Generar Iconos
         run: |
           mkdir -p Payload/DTScreen.app
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          
-          # Procesar logo si existe
-          for f in AppIcon.png AppIcon.jpg "Logo DT 2026.jpg"; do
-            if [ -f "$f" ]; then
-              sips -z 120 120 "$f" --out Payload/DTScreen.app/AppIcon60x60@2x.png || true
-              sips -z 152 152 "$f" --out Payload/DTScreen.app/AppIcon76x76@2x~ipad.png || true
+
+          IMG_FILE=""
+          for name in "Logo DT 2026.jpg" AppIcon.png AppIcon.jpg Logo.jpg Logo.png; do
+            if [ -f "$name" ]; then
+              IMG_FILE="$name"
               break
             fi
           done
+
+          if [ -n "$IMG_FILE" ]; then
+            sips -s format png "$IMG_FILE" --out Payload/DTScreen.app/AppIcon.png
+            sips -z 152 152 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon76x76@2x~ipad.png
+            sips -z 76 76 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon76x76~ipad.png
+            sips -z 120 120 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon60x60@2x.png
+            sips -z 80 80 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon40x40@2x.png
+            sips -z 58 58 "$IMG_FILE" --out Payload/DTScreen.app/AppIcon29x29@2x.png
+          fi
 
           xcrun swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen
           cp Info.plist Payload/DTScreen.app/

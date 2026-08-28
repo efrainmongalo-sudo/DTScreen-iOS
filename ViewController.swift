@@ -7,6 +7,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        UIApplication.shared.isStatusBarHidden = true
+        UIApplication.shared.isIdleTimerDisabled = true
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = ScreenViewController()
         window?.makeKeyAndVisible()
@@ -20,22 +22,29 @@ class ScreenViewController: UIViewController {
     var serverFd: Int32 = -1
     var isRunning = true
 
+    override var prefersStatusBarHidden: Bool { return true }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
 
-        imageView.frame = view.bounds
-        imageView.contentMode = .scaleAspectFit
+        imageView.frame = UIScreen.main.bounds
+        imageView.contentMode = .scaleToFill
         imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(imageView)
 
-        statusLabel.frame = CGRect(x: 20, y: 20, width: 400, height: 40)
+        statusLabel.frame = CGRect(x: 24, y: 24, width: 400, height: 30)
         statusLabel.textColor = UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
-        statusLabel.font = UIFont.boldSystemFont(ofSize: 18)
-        statusLabel.text = "DT Screen: Esperando senal USB..."
+        statusLabel.font = UIFont.boldSystemFont(ofSize: 16)
+        statusLabel.text = "DT Screen: Esperando señal USB..."
         view.addSubview(statusLabel)
 
         startServer()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        imageView.frame = view.bounds
     }
 
     func startServer() {
@@ -48,7 +57,7 @@ class ScreenViewController: UIViewController {
             var addr = sockaddr_in()
             addr.sin_family = sa_family_t(AF_INET)
             addr.sin_port = in_port_t(5900).bigEndian
-            addr.sin_addr.s_addr = in_addr_t(0) // INADDR_ANY
+            addr.sin_addr.s_addr = in_addr_t(0)
 
             withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
@@ -70,7 +79,7 @@ class ScreenViewController: UIViewController {
                 if clientFd < 0 { continue }
 
                 DispatchQueue.main.async {
-                    self.statusLabel.text = "DT Screen: Transmitiendo 60 FPS"
+                    self.statusLabel.text = "DT Screen: Conectado a 60 FPS"
                     UIView.animate(withDuration: 1.0, delay: 1.5, options: [], animations: {
                         self.statusLabel.alpha = 0
                     }, completion: nil)
@@ -81,7 +90,7 @@ class ScreenViewController: UIViewController {
 
                 DispatchQueue.main.async {
                     self.statusLabel.alpha = 1.0
-                    self.statusLabel.text = "DT Screen: Esperando senal USB..."
+                    self.statusLabel.text = "DT Screen: Esperando señal USB..."
                 }
             }
         }
