@@ -14,15 +14,14 @@ jobs:
 
       - name: Compilar binario nativo ARM64
         run: |
-          mkdir -p build/Payload/DTScreen.app
+          mkdir -p Payload/DTScreen.app
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
-          xcrun -sdk iphoneos swiftc -target arm64-apple-ios12.0 -sdk "$SDK_PATH" -framework UIKit -framework Foundation -framework Network -emit-executable ViewController.swift -o build/Payload/DTScreen.app/DTScreen
-          cp Info.plist build/Payload/DTScreen.app/
-          cd build
+          xcrun swiftc -target arm64-apple-ios14.0 -sdk "$SDK_PATH" -parse-as-library ViewController.swift -o Payload/DTScreen.app/DTScreen
+          cp Info.plist Payload/DTScreen.app/
           zip -r DTScreen.ipa Payload
 
       - name: Guardar IPA como archivo descargable
         uses: actions/upload-artifact@v4
         with:
           name: DTScreen-App
-          path: build/DTScreen.ipa
+          path: DTScreen.ipa
