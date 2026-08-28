@@ -1,0 +1,27 @@
+﻿name: Build DTScreen IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compilar binario nativo ARM64
+        run: |
+          mkdir -p build/Payload/DTScreen.app
+          xcrun -sdk iphoneos swiftc -target arm64-apple-ios12.0 ViewController.swift -o build/Payload/DTScreen.app/DTScreen
+          cp Info.plist build/Payload/DTScreen.app/
+          cd build
+          zip -r DTScreen.ipa Payload
+
+      - name: Guardar IPA como archivo descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: DTScreen-App
+          path: build/DTScreen.ipa
