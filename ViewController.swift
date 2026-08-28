@@ -10,8 +10,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         UIApplication.shared.isStatusBarHidden = true
         UIApplication.shared.isIdleTimerDisabled = true
         
-        let screenBounds = UIScreen.main.bounds
-        let win = UIWindow(frame: screenBounds)
+        let win = UIWindow(frame: UIScreen.main.bounds)
         win.rootViewController = ScreenViewController()
         win.makeKeyAndVisible()
         self.window = win
@@ -22,6 +21,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 class ScreenViewController: UIViewController {
     let screenLayer = CALayer()
     var serverFd: Int32 = -1
+    var clientFd: Int32 = -1
     var isRunning = true
 
     override var prefersStatusBarHidden: Bool { return true }
@@ -32,10 +32,11 @@ class ScreenViewController: UIViewController {
         view.backgroundColor = .black
 
         screenLayer.frame = view.bounds
-        screenLayer.contentsGravity = .resize
-        screenLayer.actions = ["contents": NSNull()] // Desactivar animaciones para latencia cero
+        screenLayer.contentsGravity = .resizeAspectFill
+        screenLayer.actions = ["contents": NSNull()]
         view.layer.addSublayer(screenLayer)
 
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged), name: UIDevice.orientationDidChangeNotification, object: nil)
         startServer()
     }
 
@@ -47,11 +48,21 @@ class ScreenViewController: UIViewController {
         CATransaction.commit()
     }
 
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        super.viewWillTransition(to: size, with: coordinator)
-        coordinator.animate(alongsideTransition: { _ in
-            self.screenLayer.frame = CGRect(origin: .zero, size: size)
-        }, completion: nil)
+    @objc func orientationChanged() {
+        guard clientFd >= 0 else { return }
+        let size = UIScreen.main.bounds.size
+        let isLandscape = UIDevice.current.orientation.isLandscape || (size.width > size.height)
+        
+        // Resoluciones nativas Retina iPad Air
+        let w = isLandscape ? 2048 : 1536
+        let h = isLandscape ? 1536 : 2048
+        
+        let msg = String(format: "ROT:%04d:%04d\n", w, h)
+        if let data = msg.data(using: .utf8) {
+            _ = data.withUnsafeBytes { ptr in
+                send(clientFd, ptr.baseAddress, data.count, 0)
+            }
+        }
     }
 
     func startServer() {
@@ -77,20 +88,22 @@ class ScreenViewController: UIViewController {
             while self.isRunning {
                 var clientAddr = sockaddr_in()
                 var clientLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-                let clientFd = withUnsafeMutablePointer(to: &clientAddr) {
+                let cFd = withUnsafeMutablePointer(to: &clientAddr) {
                     $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                         accept(self.serverFd, $0, &clientLen)
                     }
                 }
 
-                if clientFd < 0 { continue }
+                if cFd < 0 { continue }
                 
-                // Configurar TCP_NODELAY para latencia ultra baja
                 var noDelay: Int32 = 1
-                setsockopt(clientFd, IPPROTO_TCP, TCP_NODELAY, &noDelay, socklen_t(MemoryLayout<Int32>.size))
+                setsockopt(cFd, IPPROTO_TCP, TCP_NODELAY, &noDelay, socklen_t(MemoryLayout<Int32>.size))
 
-                self.readClientData(clientFd: clientFd)
-                close(clientFd)
+                self.clientFd = cFd
+                self.orientationChanged()
+                self.readClientData(clientFd: cFd)
+                close(cFd)
+                self.clientFd = -1
             }
         }
     }
@@ -106,7 +119,7 @@ class ScreenViewController: UIViewController {
             }
 
             let totalSize = Int(UInt32(bigEndian: sizeBuf.withUnsafeBytes { $0.load(as: UInt32.self) }))
-            guard totalSize > 0 && totalSize < 15_000_000 else { return }
+            guard totalSize > 0 && totalSize < 25_000_000 else { return }
 
             var data = Data(count: totalSize)
             var totalRead = 0
@@ -123,7 +136,7 @@ class ScreenViewController: UIViewController {
             if !success { return }
 
             if let provider = CGDataProvider(data: data as CFData),
-               let image = CGImage(jpegDataProviderSource: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) {
+               let image = CGImage(jpegDataProviderSource: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) {
                 DispatchQueue.main.async {
                     self.screenLayer.contents = image
                 }
