@@ -21,6 +21,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 class ScreenViewController: UIViewController {
     let imageView = UIImageView()
     var serverFd: Int32 = -1
+    var activeClientFd: Int32 = -1
     var isRunning = true
 
     override var prefersStatusBarHidden: Bool { return true }
@@ -30,16 +31,12 @@ class ScreenViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black
 
+        imageView.frame = view.bounds
         imageView.contentMode = .scaleToFill
-        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(imageView)
 
-        NSLayoutConstraint.activate([
-            imageView.topAnchor.constraint(equalTo: view.topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged), name: UIDevice.orientationDidChangeNotification, object: nil)
 
         startServer()
     }
@@ -47,6 +44,21 @@ class ScreenViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         imageView.frame = view.bounds
+    }
+
+    @objc func orientationChanged() {
+        guard activeClientFd >= 0 else { return }
+        let size = UIScreen.main.bounds.size
+        let isLandscape = UIDevice.current.orientation.isLandscape || (size.width > size.height)
+        let w = isLandscape ? 1024 : 768
+        let h = isLandscape ? 768 : 1024
+        
+        let msg = "RESI:\(w):\(h)\n"
+        if let data = msg.data(using: .utf8) {
+            _ = data.withUnsafeBytes { ptr in
+                send(activeClientFd, ptr.baseAddress, data.count, 0)
+            }
+        }
     }
 
     func startServer() {
@@ -79,8 +91,11 @@ class ScreenViewController: UIViewController {
                 }
 
                 if clientFd < 0 { continue }
+                self.activeClientFd = clientFd
+                self.orientationChanged()
                 self.readClientData(clientFd: clientFd)
                 close(clientFd)
+                self.activeClientFd = -1
             }
         }
     }
